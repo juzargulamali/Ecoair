@@ -58,6 +58,7 @@
 </template>
 
 <script>
+import AuthService from "../services/AuthService";
 export default {
   name: "Login",
   data() {
@@ -77,22 +78,23 @@ export default {
       this.serverResponse = "";
       e.preventDefault();
       // console.log(this.formData);
-      this.$store
-        .dispatch("login", {
-          credentials: this.formData,
-        })
+      AuthService.login(this.formData)
         .then(() => {
+          localStorage.setItem("loggedIn", true);
+          this.$store.commit("setIsLoggedIn", true);
+          this.$root.$refs.notifications.trigger({
+            title: `Login Successful`,
+            message: `Successfully logged in. Welcome back!`,
+            color: "green",
+            timeout: "5000",
+          });
           this.loading = false;
-          // console.log(this.$store.state);
-          this.$router.push("/");
+          this.$router.push(this.$route.query.redirect || "/");
         })
         .catch((err) => {
+          localStorage.setItem("loggedIn", false);
+          this.serverResponse = err.response.data;
           this.loading = false;
-          if (err.response) {
-            this.serverResponse = err.response.data.message;
-          } else {
-            this.serverResponse = "Server Error Occured";
-          }
         });
     },
   },

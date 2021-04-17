@@ -17,6 +17,8 @@ module.exports = {
     extend: {
       backgroundColor: ['odd', 'even', 'active'],
       textColor: ['group-focus'],
+      scale: ['group-hover'],
+      display: ['group-hover'],
       borderColor: ['group-focus', 'group-hover', 'focus-within'],
       padding: ['first', 'last'],
     },

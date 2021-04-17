@@ -1,4 +1,5 @@
 import axios from "axios"
+axios.defaults.withCredentials = true;
 const SERVER = "http://localhost:3000/api"
 
 let request = (method, extension, data = null, responseTypeFile = false) => {
@@ -8,13 +9,13 @@ let request = (method, extension, data = null, responseTypeFile = false) => {
             "Content-Type": "application/json",
         },
     };
-    let token = localStorage["token"];
-    if (extension === "auth/refreshtoken") {
-        token = localStorage["refreshToken"];
-    }
-    if (token) {
-        config.headers["Authorization"] = `Bearer ${token}`;
-    }
+    // let token = localStorage["token"];
+    // if (extension === "auth/refreshtoken") {
+    //     token = localStorage["refreshToken"];
+    // }
+    // if (token) {
+    //     config.headers["Authorization"] = `Bearer ${token}`;
+    // }
 
     //POST Requests
     if (method === "post") {

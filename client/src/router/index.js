@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import store from '../store'
+import AuthService from '../services/AuthService'
 
 const routes = [
   {
@@ -11,12 +11,20 @@ const routes = [
     // }
   },
   {
+    path: '/devices',
+    name: 'Devices',
+    component: () => import(/* webpackChunkName: "about" */ '../views/Devices.vue'),
+    // meta: {
+    //   type: 'Private'
+    // }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import(/* webpackChunkName: "about" */ '../views/Login.vue'),
-    // meta: {
-    //   type: 'Restricted'
-    // }
+    meta: {
+      allowAnonymous: true
+    }
   },
 
 ]
@@ -26,20 +34,22 @@ const router = createRouter({
   routes
 })
 
+
+
 router.beforeEach((to, from, next) => {
-  if (to.matched.some(record => record.meta.type === 'Private')) {
-    if (store.getters.isLoggedIn && to.meta.permissions.includes(store.state.user.role)) {
-      next()
-      return
-    }
-    next('/login')
-  } else if (to.matched.some(record => record.meta.type === 'Restricted')) {
-    if (!store.getters.isLoggedIn) {
-      next()
-      return
-    }
-    next('/')
-  } else {
+  if (to.path === '/login' && AuthService.isLoggedIn()) {
+    next({
+      path: '/',
+    });
+    return;
+  }
+  if (!to.meta.allowAnonymous && !AuthService.isLoggedIn()) {
+    next({
+      path: '/login',
+      query: { redirect: to.fullPath }
+    })
+  }
+  else {
     next()
   }
 })

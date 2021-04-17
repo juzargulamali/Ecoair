@@ -1,18 +1,12 @@
 <template>
-  <div class="flex flex-col items-center mt-9 px-2 sm:px-0">
-    <SearchFilterModal
-      v-show="filterToggle"
-      :toggle="toggle"
-      :applyFilters="applyFilters"
-    />
+  <div class="flex flex-col items-center mt-9">
     <div
       class="flex flex-wrap justify-between sm:w-9/12 w-full rounded-md gap-2"
     >
       <div class="text-3xl flex flex-wrap gap-3">
-        <span>Logs</span>
-
+        <span>Devices</span>
         <button
-          @click="updateLogList"
+          @click="updateDeviceList"
           class="focus:outline-none text-sm transform hover:scale-110 h-6 w-6 text-white rounded-full bg-gray-700 self-center"
         >
           <font-awesome-icon
@@ -23,19 +17,18 @@
       </div>
       <div class="flex flex-wrap justify-start gap-2">
         <button
+          @click="openDeviceForm({})"
+          class="border border-green-600 p-2 rounded-md text-green-600 font-semibold opacity-80 hover:opacity-100 focus:outline-none"
+        >
+          <font-awesome-icon icon="plus" class="mr-2"> </font-awesome-icon>
+          <span>Add Device</span>
+        </button>
+        <button
           @click="toggle"
           class="border border-gray-500 p-2 rounded-md text-gray-500 font-semibold opacity-80 hover:opacity-100 focus:outline-none"
         >
           <font-awesome-icon icon="filter" class="mr-2"> </font-awesome-icon>
           <span>Filter Logs</span>
-        </button>
-        <button
-          v-if="!filtersIsEmpty()"
-          @click="handleDelete"
-          class="border border-red-500 p-2 rounded-md text-red-500 text-sm font-semibold opacity-80 hover:opacity-100 focus:outline-none"
-        >
-          <font-awesome-icon icon="trash" class="mr-2"> </font-awesome-icon>
-          <span>Delete Filtered Logs</span>
         </button>
       </div>
     </div>
@@ -57,7 +50,7 @@
       <div
         v-for="(company, i) in filters.companies"
         :key="company"
-        class="group text-blue-500 border border-blue-500 rounded-md p-2 flex items-center"
+        class="group text-gray-500 border border-gray-500 rounded-md p-2 flex items-center"
       >
         <span>Company: {{ company }}</span>
         <button
@@ -70,7 +63,7 @@
       <div
         v-for="(device, i) in filters.devices"
         :key="device.device_id"
-        class="group text-blue-500 border border-blue-500 rounded-md p-2 flex items-center"
+        class="group text-gray-500 border border-gray-500 rounded-md p-2 flex items-center"
       >
         <img
           v-if="!!device.country"
@@ -90,7 +83,7 @@
       <div class="w-full mb-12 mt-5">
         <div
           id="previewContainer"
-          class="flex flex-row overflow-x-auto rounded-lg shadow-lg"
+          class="flex flex-row overflow-x-auto rounded-lg shadow-lg relative"
         >
           <table id="previewTable" class="table-auto border-collapse w-full">
             <thead class="bg-gray-700 border-b-4 border-gray-500">
@@ -101,12 +94,14 @@
               >
                 {{ head }}
               </th>
+              <th class="flex py-3"></th>
             </thead>
             <tbody>
               <tr
-                class="odd:bg-gray-200 even:bg-gray-50 border-b border-l-2 border-r border-gray-300"
-                v-for="(row, i) in logs"
+                class="odd:bg-gray-200 even:bg-gray-50 border-b border-l-2 border-r border-gray-300 hover:bg-gray-300 cursor-pointer"
+                v-for="(row, i) in devices"
                 :key="i"
+                @click="openDeviceForm(row)"
               >
                 <td
                   v-for="(j, head) in headers"
@@ -114,12 +109,17 @@
                   class="px-3 py-3 text-gray-700 font-semibold"
                 >
                   {{
-                    head === "createdAt"
-                      ? formatDateTime(row[head])
-                      : head === "hours" || head === "reading"
-                      ? row[head].toFixed(2)
-                      : row[head]
+                    head !== "createdAt" ? row[head] : formatDateTime(row[head])
                   }}
+                </td>
+                <td class="flex gap-2 py-3">
+                  <button
+                    v-on:click.stop
+                    @click="handleDelete(row, i)"
+                    class="text-xl text-red-500 hover:text-red-600 focus:outline-none"
+                  >
+                    <font-awesome-icon icon="trash"> </font-awesome-icon>
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -127,7 +127,7 @@
         </div>
 
         <div
-          v-if="logs.length === 0"
+          v-if="devices.length === 0"
           class="opacity-50 text-center w-full px-3 py-3"
         >
           {{ serverResponse }}
@@ -138,45 +138,66 @@
         <button
           v-show="page > 1"
           class="text-gray-800 border border-gray-700 opacity-60 hover:opacity-100 focus:outline-none px-3 py-2 rounded"
-          @click="getLogEntries(false)"
+          @click="getDevices(false)"
         >
           Previous
         </button>
         <button
           v-show="page < pageCount"
           class="text-gray-800 border border-gray-700 opacity-60 hover:opacity-100 focus:outline-none px-3 py-2 rounded"
-          @click="getLogEntries(true)"
+          @click="getDevices(true)"
         >
           Next
         </button>
       </div>
     </div>
+    <SearchFilterModal
+      v-show="filterToggle"
+      :toggle="toggle"
+      :applyFilters="applyFilters"
+    />
+    <DeviceFormModal
+      v-if="deviceFormToggle"
+      :toggle="
+        () => {
+          deviceFormToggle = !deviceFormToggle;
+        }
+      "
+      :device="selectedDevice"
+      :updateSelectedDevice="updateSelectedDevice"
+    />
   </div>
 </template>
 
 <script>
 import { findFlagUrlByCountryName } from "country-flags-svg";
 import SearchFilterModal from "../components/SearchFilterModal.vue";
-import LogService from "../services/LogService";
-import Headers from "../assets/data/LogHeaders";
+import DeviceFormModal from "../components/DeviceFormModal.vue";
+import DeviceService from "../services/DeviceService";
+import Headers from "../assets/data/DeviceHeaders";
 export default {
-  name: "Home",
-  components: { SearchFilterModal },
+  name: "Devices",
+  components: {
+    SearchFilterModal,
+    DeviceFormModal,
+  },
   data() {
     return {
       findFlagUrlByCountryName: findFlagUrlByCountryName,
       headers: Headers,
-      logs: [],
-      pageCount: 9999,
-      limit: 50,
+      devices: [],
+      pageCount: 99999,
       page: 1,
+      limit: 50,
       filters: {
         devices: [],
         countries: [],
         companies: [],
       },
       filterToggle: false,
-      loading: true,
+      deviceFormToggle: false,
+      selectedDevice: {},
+      loading: false,
       serverResponse: "",
     };
   },
@@ -186,78 +207,42 @@ export default {
     },
     applyFilters(filters) {
       this.page = 1;
-      this.filters = { ...filters };
+      this.filters = filters;
     },
     formatDateTime(d) {
       return new Date(d).toLocaleString();
     },
-    deleteFilter(type, index) {
-      this.page = 1;
-      this.filters[type].splice(index, 1);
-      this.updateLogList();
+    openDeviceForm(device) {
+      this.selectedDevice = device;
+      this.deviceFormToggle = true;
     },
-    updateLogList() {
-      this.logs = [];
-      this.loading = true;
-      this.serverResponse = "Fetching...";
-      LogService.findLogEntriesByFilter({
-        countries: this.filters.countries.map((c) => c.name),
-        companies: this.filters.companies,
-        device_ids: this.filters.devices.map((d) => d.device_id),
-        page: this.page,
-        limit: this.limit,
-      })
-        .then((res) => {
-          this.logs = res.data.logEntries;
-          if (this.page === 1) this.pageCount = res.data.pageCount;
-          this.loading = false;
-          this.serverResponse = "No logs to show";
-        })
-        .catch((err) => {
-          this.loading = false;
-          this.serverResponse = "Failed to fetch logs";
-          console.log(err);
-        });
+    updateSelectedDevice(device) {
+      this.selectedDevice.country = device.country;
+      this.selectedDevice.company = device.company;
     },
-    filtersIsEmpty() {
-      return (
-        !this.filters.countries.length &&
-        !this.filters.companies.length &&
-        !this.filters.devices.length
-      );
-    },
-    async handleDelete() {
+    async handleDelete(device, i) {
       const ok = await this.$root.$refs.confirmationDialogue.trigger({
-        title:
-          "Are you sure you want to delete this all logs that match your filters?",
-        message: `Filters:{
-            countries:[${this.filters.countries.map((c) => c.name)}],
-            companies:[${this.filters.companies}],
-            device_ids:[${this.filters.devices.map((d) => d.device_id)}],
-          }
-          `,
+        title: "Confirm Deletion",
+        message:
+          "Are you sure you want to delete this device and all its logs?",
         yesButton: "Confirm Deletion",
         noButton: "Cancel",
       });
       if (ok) {
-        LogService.deleteLogsByFilters({
-          countries: this.filters.countries.map((c) => c.name),
-          companies: this.filters.companies,
-          device_ids: this.filters.devices.map((d) => d.device_id),
-        })
+        DeviceService.deleteDeviceByID(device.device_id)
           .then(() => {
-            this.updateLogList();
+            this.devices.splice(i, 1);
             this.$root.$refs.notifications.trigger({
-              title: `Logs Successfully Deleted`,
-              message: `Filtered logs successfully deleted from database`,
+              title: `Device Successfully Deleted`,
+              message: `Device ${device.device_id} deleted from database`,
               color: "green",
               timeout: "5000",
             });
           })
           .catch((err) => {
             this.$root.$refs.notifications.trigger({
-              title: `Logs Deletion Failed`,
-              message: `Failed to delete filtered logs from database`,
+              title: `Device Deletion Failed`,
+              message: `Failed to delete device ${device.device_id} from database`,
               color: "red",
               timeout: "5000",
             });
@@ -265,22 +250,61 @@ export default {
           });
       }
     },
-    getLogEntries(cursorNext) {
+    deleteFilter(type, index) {
+      this.filters[type].splice(index, 1);
+      this.updateDeviceList();
+    },
+    updateDeviceList() {
+      this.devices = [];
+      this.loading = true;
+      this.serverResponse = "Fetching...";
+      DeviceService.findDevicesByFilter({
+        countries: this.filters.countries.map((c) => c.name),
+        companies: this.filters.companies,
+        device_ids: this.filters.devices.map((d) => d.device_id),
+        page: this.page,
+        limit: this.limit,
+      })
+        .then((res) => {
+          this.devices = res.data.devices;
+          if (this.page === 1) this.pageCount = res.data.pageCount;
+          this.loading = false;
+          this.serverResponse = "No devices to show";
+        })
+        .catch((err) => {
+          this.loading = false;
+          this.serverResponse = "Failed to fetch devices";
+          console.log(err);
+        });
+    },
+    getDevices(cursorNext) {
       if (cursorNext && this.page < this.pageCount) {
         this.page += 1;
-        this.updateLogList();
+        this.updateDeviceList();
       } else if (!cursorNext && this.page > 1) {
         this.page -= 1;
-        this.updateLogList();
+        this.updateDeviceList();
       }
     },
   },
   mounted() {
-    this.updateLogList();
+    this.updateDeviceList();
+    // this.loading = true;
+    // this.serverResponse = "Fetching...";
+    // DeviceService.getAllDevices({page: this.page, limit: this.limit})
+    //   .then((res) => {
+    //     this.devices = res.data.devices;
+    //     this.loading = true;
+    //     this.serverResponse = "No devices to show";
+    //   })
+    //   .catch((err) => {
+    //     this.serverResponse = "Failed to fetch devices";
+    //     console.log(err);
+    //   });
   },
   watch: {
     filters: function () {
-      this.updateLogList();
+      this.updateDeviceList();
     },
   },
 };
