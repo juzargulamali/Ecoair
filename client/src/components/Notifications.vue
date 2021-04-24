@@ -42,9 +42,6 @@ export default {
   data() {
     return {
       notifications: [],
-      title: "",
-      message: "",
-      color: "gray",
     };
   },
   methods: {
